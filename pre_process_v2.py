@@ -3,6 +3,7 @@ Source code for extracting data from raw signal
 @author Panneer Selvam Santhalingam
 2/5/2018
 
+
 '''
 
 import cmath
@@ -121,7 +122,7 @@ def build_spectrogram(inFile,window,start,end,fs):
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal 134847240
-#getAmpPhase('ahos_1_h')
+#getAmpPhase('ahos_1_c')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
-build_spectrogram('ahos_1_hA',100000,0,None,sample_rate)
+build_spectrogram('ahos_1_cA',1000000,0,None,sample_rate)
