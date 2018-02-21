@@ -1,7 +1,9 @@
 '''
-Source g1A for extracting data from raw signal
+Source code for extracting data from raw signal
 @author Panneer Selvam Santhalingam
 2/5/2018
+
+
 '''
 
 import cmath
@@ -15,10 +17,12 @@ import copy as cp
 
 sample_rate=10e6 
 time_slot=1/sample_rate
+
 	
 '''
 File naming convention s-sine, a-ahosain, r-reflection, g-gesture, cal - standing calibration, calW - wall calibration
 ''' 
+
 def getAmpPhase(file):
 	sample_time=0
 	ampArray=[]
@@ -69,32 +73,48 @@ def windowMedian(inFile,window):
 		outFile.write(str(sample_time)+','+str(file.iloc[current_index:(current_index+window)].median()['val'])+'\n')
 		current_index+=window
 
-def build_spectrogram(inFile,window):
+
+'''
+	Builds  spectrogram based from the given timseries data
+	for the given window and  from the given location of the file
+	based on the sampling rate
+'''
+
+def build_spectrogram(inFile,window,start,end,fs):
 	file=pd.read_csv(inFile)
 	file.columns=['val']
 	a=[]
-	fs=sample_rate
 	j=0
 	minAmp=0
 	maxAmp=0
+	count=0
+	gfile=open('gplot_file','w')
+	time_range=fs/window
 	for i in range(0,file.shape[0],window):
 		if i+window > file.shape[0]:
 			break
 		x=abs(np.fft.rfft(file['val'].iloc[i:(i+(window))].values).real).tolist()
 		if maxAmp<max(x):
 			maxAmp=max(x)
-		a.append(x)
-		
-	#x,y=np.meshgrid(f,t)
-	t=np.linspace(time_slot,time_slot*file.shape[0],len(a)).tolist()
-	f=np.fft.rfftfreq(window,1/fs).tolist()
+		if count > (start * time_range):
+			a.append(x)
+		if end != None and count > (end*time_range):
+			break
+		count+=1
+	t=np.linspace(start,start+time_slot*len(a)*window,len(a)).tolist()
+	#t=np.linspace(0,time_slot*file.shape[0],len(a)).tolist()
+	f=np.fft.rfftfreq(window,1/sample_rate).tolist()
+	x,y=np.meshgrid(t,f)
 	amplitude=np.array(a)
 	print(len(t))
 	print(len(f))
 	print(amplitude.shape)
-	plt.pcolormesh(f,t,amplitude,cmap='hot')
-	plt.ylabel('Time')
-	plt.xlabel('Frequency')
+	#plt.plot(f,x)
+	ax=plt.gca()
+	#ax.set_yscale('log')
+	plt.pcolormesh(x,y,np.transpose(amplitude),cmap='hot')
+	plt.xlabel('Time')
+	plt.ylabel('Frequency')
 	plt.colorbar(ticks=np.linspace(0,maxAmp,20))
 	plt.show()
 
@@ -150,3 +170,4 @@ def down_sample(sampleFile,factor,order):
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
 #build_spectrogram('ahos_1A',1000000,0,None,sample_rate)
 print(len(down_sample('ahos_1A',1000,6)))
+
