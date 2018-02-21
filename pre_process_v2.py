@@ -99,11 +99,54 @@ def build_spectrogram(inFile,window):
 	plt.show()
 
 
+def butter_worth(Order,pass_band,stop_band,band,fs):
+	nyq=fs/2
+	if band== 'bandpass':
+		pass_low=pass_band/nyq
+		pass_high=stop_band/nyq
+		stop_low=pass_low*0.8
+		stop_high=pass_high/0.8
+	else:
+		low=pass_band/nyq
+	if Order !=None:
+		b,a = signal.butter(Order,Wn=low,btype=band)
+		w,h =signal.freqz(b,a)
+		plt.plot((nyq/np.pi)*w,abs(h))
+	else:
+		for i in [10,30,40,60,80]:
+			b,a = signal.iirfilter(6,Wn=low,btype=band,rp=.05,rs=i,ftype='ellip')
+			w,h =signal.freqz(b,a)
+			plt.plot((nyq/np.pi)*w,abs(h),label='stop band attenuation= %d' % i)
+	#plt.xscale('log')
+	plt.title('Cheby1 filter frequency response')
+	plt.xlabel('Frequency')
+	plt.ylabel('Amplitude')
+	plt.grid(True)
+	plt.legend(loc='best')
+	plt.show()
+	return (b,a)
+
+def down_sample(sampleFile,factor,order):
+	samples=pd.read_csv(sampleFile).values.tolist()
+	print(len(samples))
+	if factor>10:
+		iterations=int(factor/10)
+	else:
+		iterations=0
+	final_iteration=factor%10
+	if iterations>0:
+		for i in range(0,iterations):
+			#print(len(samples))
+			samples=decimate(samples,10,order)
+	samples=decimate(samples,final_iteration,order)
+	return samples
 	
 #Size of file being used 33748110
 #din1ca 134918751
-#psanthal 134847240
-#getAmpPhase('ahos_1_h')
+#psanthal #134847240
+#butter_worth(None,200,None,'lowpass',100000)
+#getAmpPhase('ding_2')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
-build_spectrogram('ahos_1_hA',1000)
+#build_spectrogram('ahos_1A',1000000,0,None,sample_rate)
+print(len(down_sample('ahos_1A',1000,6)))
