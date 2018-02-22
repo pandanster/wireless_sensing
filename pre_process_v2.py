@@ -8,10 +8,8 @@ Source code for extracting data from raw signal
 
 import cmath
 import numpy as np
-from scipy.signal import savgol_filter
-from scipy import signal
 import pandas as pd
-from scipy.signal import spectrogram
+from scipy.signal import spectrogram, iirfilter,freqz,decimate
 import matplotlib.pyplot as plt
 import copy as cp
 
@@ -119,26 +117,32 @@ def build_spectrogram(inFile,window,start,end,fs):
 	plt.show()
 
 
-def butter_worth(Order,pass_band,stop_band,band,fs):
+def build_filter(Order,pass_band,stop_band,band,fs,filter):
 	nyq=fs/2
 	if band== 'bandpass':
 		pass_low=pass_band/nyq
 		pass_high=stop_band/nyq
 		stop_low=pass_low*0.8
 		stop_high=pass_high/0.8
+		wn=[pass_low,pass_high]
+	elif band=='lowpass':
+		wn=pass_band/nyq
+	elif band=='highpass':
+		wn=pass_band/nyq
 	else:
-		low=pass_band/nyq
+		return None
+
 	if Order !=None:
-		b,a = signal.butter(Order,Wn=low,btype=band)
-		w,h =signal.freqz(b,a)
-		plt.plot((nyq/np.pi)*w,abs(h))
-	else:
 		for i in [10,30,40,60,80]:
-			b,a = signal.iirfilter(6,Wn=low,btype=band,rp=.05,rs=i,ftype='ellip')
-			w,h =signal.freqz(b,a)
+			b,a = iirfilter(Order,Wn=wn,btype=band,rp=.05,rs=i,ftype=filter)
+			w,h =freqz(b,a)
 			plt.plot((nyq/np.pi)*w,abs(h),label='stop band attenuation= %d' % i)
-	#plt.xscale('log')
-	plt.title('Cheby1 filter frequency response')
+	else:
+		for i in [2,4,6]:
+			b,a = iirfilter(i,Wn=wn,btype=band,rp=.01,rs=40,ftype=filter)
+			w,h =freqz(b,a)
+			plt.plot((nyq/np.pi)*w,abs(h),label='Order= %d' % i)
+	plt.title(filter+' filter frequency response')
 	plt.xlabel('Frequency')
 	plt.ylabel('Amplitude')
 	plt.grid(True)
@@ -147,27 +151,27 @@ def butter_worth(Order,pass_band,stop_band,band,fs):
 	return (b,a)
 
 def down_sample(sampleFile,factor,order):
-	samples=pd.read_csv(sampleFile).values.tolist()
-	print(len(samples))
-	if factor>10:
-		iterations=int(factor/10)
-	else:
-		iterations=0
-	final_iteration=factor%10
-	if iterations>0:
-		for i in range(0,iterations):
-			#print(len(samples))
-			samples=decimate(samples,10,order)
-	samples=decimate(samples,final_iteration,order)
-	return samples
-	
+	samples=pd.read_csv(sampleFile,names=['val']).round(9)
+	samples=samples['val'].iloc[:].values
+    if factor>9:
+    	iterations=int(factor/10)
+    else:
+    	iterations=0
+    	final_iteration=factor%10
+    	if iterations>0:
+    		for i in range(0,iterations):
+    			print(samples.shape)
+    			samples=decimate(samples,10,order)
+    	if final_iteration>0:
+    		samples=decimate(samples,final_iteration,order)
+    return samples
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
-#butter_worth(None,200,None,'lowpass',100000)
+build_filter(None,10,None,'highpass',5000,'cheby1')
 #getAmpPhase('ding_2')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
 #build_spectrogram('ahos_1A',1000000,0,None,sample_rate)
-print(len(down_sample('ahos_1A',1000,6)))
+#print(len(down_sample('ahos_1A',1000,6)))
 
