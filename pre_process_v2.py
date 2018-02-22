@@ -9,7 +9,7 @@ Source code for extracting data from raw signal
 import cmath
 import numpy as np
 import pandas as pd
-from scipy.signal import spectrogram, iirfilter,freqz,decimate
+from scipy.signal import spectrogram, iirfilter,freqz,decimate,filtfilt
 import matplotlib.pyplot as plt
 import copy as cp
 
@@ -117,7 +117,7 @@ def build_spectrogram(inFile,window,start,end,fs):
 	plt.show()
 
 
-def build_filter(Order,pass_band,stop_band,band,fs,filter):
+def build_filter(Order,pass_band,stop_band,band,fs,filter,ripple,attenuation):
 	nyq=fs/2
 	if band== 'bandpass':
 		pass_low=pass_band/nyq
@@ -132,46 +132,91 @@ def build_filter(Order,pass_band,stop_band,band,fs,filter):
 	else:
 		return None
 
-	if Order !=None:
+	if attenuation!=None:
+		b,a = iirfilter(Order,Wn=wn,btype=band,rp=ripple,rs=attenuation,ftype=filter)
+		w,h =freqz(b,a)
+	elif Order !=None:
 		for i in [10,30,40,60,80]:
 			b,a = iirfilter(Order,Wn=wn,btype=band,rp=.05,rs=i,ftype=filter)
 			w,h =freqz(b,a)
 			plt.plot((nyq/np.pi)*w,abs(h),label='stop band attenuation= %d' % i)
-	else:
+		plt.title(filter+' filter frequency response')
+		plt.xlabel('Frequency')
+		plt.ylabel('Amplitude')
+		plt.grid(True)
+		plt.legend(loc='best')
+		plt.show()	
+	elif attenuation==None:
 		for i in [2,4,6]:
 			b,a = iirfilter(i,Wn=wn,btype=band,rp=.01,rs=40,ftype=filter)
 			w,h =freqz(b,a)
 			plt.plot((nyq/np.pi)*w,abs(h),label='Order= %d' % i)
-	plt.title(filter+' filter frequency response')
-	plt.xlabel('Frequency')
-	plt.ylabel('Amplitude')
-	plt.grid(True)
-	plt.legend(loc='best')
-	plt.show()
+		plt.title(filter+' filter frequency response')
+		plt.xlabel('Frequency')
+		plt.ylabel('Amplitude')
+		plt.grid(True)
+		plt.legend(loc='best')
+		plt.show()
 	return (b,a)
 
-def down_sample(sampleFile,factor,order):
-	samples=pd.read_csv(sampleFile,names=['val']).round(9)
-	samples=samples['val'].iloc[:].values
-    if factor>9:
-    	iterations=int(factor/10)
-    else:
-    	iterations=0
-    	final_iteration=factor%10
-    	if iterations>0:
-    		for i in range(0,iterations):
-    			print(samples.shape)
-    			samples=decimate(samples,10,order)
-    	if final_iteration>0:
-    		samples=decimate(samples,final_iteration,order)
-    return samples
+def down_sample(sampleFile,factor,order,file=True):
+	if file!=True:
+		samples=sampleFile
+	else:
+		samples=pd.read_csv(sampleFile,names=['val']).round(9)
+		samples=samples['val'].iloc[:].values
+		samples=samples.round(9)
+	if factor>9:
+		iterations=int(factor/10)
+	else:
+		iterations=0
+	final_iteration=factor%10
+	if iterations>0:
+		for i in range(0,iterations):
+			print(samples.shape)
+			samples=decimate(samples,10,order)
+	if final_iteration>0:
+		samples=decimate(samples,final_iteration,order)
+	return samples
+
+def apply_filter(b,a,data):
+	return filtfilt(b,a,data)
+
+def plotData(dataFile,filtered,fs1,fs2,file=True):
+	time_slot1=1/fs1
+	time_slot2=1/fs2
+	if file==True:
+		data=pd.read_csv(dataFile,names=['val']).round(9)
+		data=data['val'].iloc[:].values
+	else:
+		data=dataFile
+	t1=np.linspace(0,time_slot1*len(data),len(data))
+	plt.title('time vs amplitude plot')
+	plt.plot(t1,data,label='filtered 200Hz')
+	t2=np.linspace(0,time_slot2*len(filtered),len(filtered))
+	plt.plot(t2,filtered,label='filtered 10Hz to 200Hz')
+	plt.legend(loc='best')		
+	plt.grid(True)
+	plt.show()
+
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
-build_filter(None,10,None,'highpass',5000,'cheby1')
+'''
+Low pass at 200 Hz order 6 rp=.01, rs=40
+High pass at 10 Hz 6 rp=.01 and rs =80
+'''
+b1,a1=build_filter(6,200,None,'lowpass',100000,'ellip',.01,40)
+b2,a2=build_filter(6,10,None,'highpass',5000,'ellip',.01,80)
+sampled1=down_sample('ahos_1A',20,6)
+filtered1=apply_filter(b1,a1,sampled1)
+sampled2=down_sample(filtered1,12,6,file=False)
+filtered2=apply_filter(b2,a2,sampled2)
+plotData(filtered1,filtered2,100000,5000,file=False)
+
 #getAmpPhase('ding_2')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
 #build_spectrogram('ahos_1A',1000000,0,None,sample_rate)
-#print(len(down_sample('ahos_1A',1000,6)))
+
 
