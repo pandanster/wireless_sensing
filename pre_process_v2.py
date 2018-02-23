@@ -17,9 +17,9 @@ sample_rate=10e6
 time_slot=1/sample_rate
 
 	
-'''
-File naming convention s-sine, a-ahosain, r-reflection, g-gesture, cal - standing calibration, calW - wall calibration
-''' 
+
+#File naming convention s-sine, a-ahosain, r-reflection, g-gesture, cal - standing calibration, calW - wall calibration
+
 
 def getAmpPhase(file):
 	sample_time=0
@@ -36,14 +36,24 @@ def getAmpPhase(file):
 		ampFile.write(str(round(amp,10))+'\n')
 	#	phaseFile.write(str(sample_time)+','+str(phase)+'\n')
 
-def movingWinFilter(inFile,window):
-	file=pd.read_csv(inFile)
-	file.columns=['time','val']
+def movingWinFilter(input,window,outFile=True,inFile=True):
+	if inFile==True:
+		file=pd.read_csv(input,names=['time','val'])
+	else:
+		file=pd.DataFrame(input,columns=['val'])
 	file['mean']=file['val'].rolling(window=window).mean()
 	file=file.dropna()
-	ampFiltered=open(inFile+'_mwinfilt','w')
+	if outFile==True:
+		ampFiltered=open(inFile+'_mwinfilt','w')
+	else:
+		ampFiltered=[]
 	for i in range(file.shape[0]):
-		ampFiltered.write(str(file.iloc[i]['time'])+','+str(file.iloc[i]['mean'])+'\n')
+		if outFile==True:
+			ampFiltered.write(str(file.iloc[i]['time'])+','+str(file.iloc[i]['mean'])+'\n')
+		else:
+			ampFiltered.append(file.iloc[i]['mean'])
+	if outFile==False:
+		return ampFiltered
 
 def windowAverage(inFile,window):
 	file=pd.read_csv(inFile)
@@ -78,30 +88,32 @@ def windowMedian(inFile,window):
 	based on the sampling rate
 '''
 
-def build_spectrogram(inFile,window,start,end,fs):
-	file=pd.read_csv(inFile)
-	file.columns=['val']
+def build_spectrogram(input,window,start,end,fs,inFile=True):
+	if inFile==True:
+		file=pd.read_csv(input,names=['val'])
+	else:
+		file=pd.DataFrame(input,columns=['val'])
 	a=[]
 	j=0
 	minAmp=0
 	maxAmp=0
 	count=0
 	gfile=open('gplot_file','w')
-	time_range=fs/window
+	time_slot=fs/window
 	for i in range(0,file.shape[0],window):
 		if i+window > file.shape[0]:
 			break
 		x=abs(np.fft.rfft(file['val'].iloc[i:(i+(window))].values).real).tolist()
 		if maxAmp<max(x):
 			maxAmp=max(x)
-		if count > (start * time_range):
+		if count > (start * time_slot):
 			a.append(x)
-		if end != None and count > (end*time_range):
+		if end != None and count > (end*time_slot):
 			break
 		count+=1
 	t=np.linspace(start,start+time_slot*len(a)*window,len(a)).tolist()
 	#t=np.linspace(0,time_slot*file.shape[0],len(a)).tolist()
-	f=np.fft.rfftfreq(window,1/sample_rate).tolist()
+	f=np.fft.rfftfreq(window,1/fs).tolist()
 	x,y=np.meshgrid(t,f)
 	amplitude=np.array(a)
 	print(len(t))
@@ -206,17 +218,19 @@ def plotData(dataFile,filtered,fs1,fs2,file=True):
 Low pass at 200 Hz order 6 rp=.01, rs=40
 High pass at 10 Hz 6 rp=.01 and rs =80
 '''
-b1,a1=build_filter(6,200,None,'lowpass',100000,'ellip',.01,40)
-b2,a2=build_filter(6,10,None,'highpass',5000,'ellip',.01,80)
-sampled1=down_sample('ahos_1A',20,6)
+
+b1,a1=build_filter(6,150.0,None,'lowpass',100000.0,'ellip',.01,40)
+b2,a2=build_filter(6,10.0,None,'highpass',5000.0,'ellip',.01,80)
+sampled1=down_sample('ahos_1_hA',20,6)
 filtered1=apply_filter(b1,a1,sampled1)
 sampled2=down_sample(filtered1,12,6,file=False)
 filtered2=apply_filter(b2,a2,sampled2)
-plotData(filtered1,filtered2,100000,5000,file=False)
+#noiseRemoved=movingWinFilter(filtered2,100,False,False)
+#plotData(filtered1,filtered2,100000,5000,file=False)
 
-#getAmpPhase('ding_2')
+#getAmpPhase('ahos_1_r')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
-#build_spectrogram('ahos_1A',1000000,0,None,sample_rate)
+build_spectrogram(filtered2,500,0,None,5000,False)
 
 
