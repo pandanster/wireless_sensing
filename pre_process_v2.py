@@ -211,6 +211,21 @@ def plotData(dataFile,filtered,fs1,fs2,file=True):
 	plt.grid(True)
 	plt.show()
 
+def plotDatafromDict(**kwargs):
+	plt.title('time vs amplitude plot')
+	for title,values in kwargs:
+		if values['file'] == True:
+			data=pd.read_csv(values['data'],names=['val']).round(9)
+			data=data['val'].iloc[:].values
+		else:
+			data=values['data']
+		time_slot=1/values['fs']
+		time=np.linspace(0,time_slot*len(data),len(data))
+		plt.plot(time,data,label=key)
+	plt.legend(loc='best')
+	plt.grid(True)
+	plt.show()
+
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
@@ -231,6 +246,8 @@ filtered2=apply_filter(b2,a2,sampled2)
 #getAmpPhase('ahos_1_r')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
-build_spectrogram(filtered2,500,0,None,5000,False)
+plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
+plotDatafromDict(plt_dict)
+#build_spectrogram(filtered2,500,0,None,5000,False)
 
 
