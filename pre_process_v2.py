@@ -13,6 +13,7 @@ from scipy.signal import spectrogram, iirfilter,freqz,decimate,filtfilt
 import matplotlib.pyplot as plt
 import copy as cp
 import glob
+import multiprocessing as mp
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -229,9 +230,27 @@ def plotDatafromDict(pltDict):
 
 def buildAmplitudes():
 	files=glob.glob('*_*')
+	mp.set_start_method('fork')
 	for file in files:
 		if '.py' not in file:
-			getAmpPhase(file)
+			p=mp.Process(target=getAmpPhase,args=(file,))
+			p.start()
+			p.join()
+
+def ApplyFilters(low,high):
+	files=glob.glob('*_*')
+	b1,a1=build_filter(6,high,None,'lowpass',100000.0,'ellip',.01,40)
+	b2,a2=build_filter(6,low,None,'highpass',5000.0,'ellip',.01,80)
+	for file in files:
+		if '.py' not in file:
+			sampled1=down_sample(file,20,6)
+			filtered1=apply_filter(b1,a1,sampled1)
+			sampled2=down_sample(filtered1,12,6,file=False)
+			filtered2=apply_filter(b2,a2,sampled2)
+			output=open(file+'_'+low+high+'Hz')
+	return
+
+
 
 #Size of file being used 33748110
 #din1ca 134918751
