@@ -36,6 +36,8 @@ def getAmpPhase(file):
 		sample_time+=time_slot
 		amp,phase=cmath.polar(val)
 		ampFile.write(str(round(amp,10))+'\n')
+	ampFile.close()
+	f.close()
 	#	phaseFile.write(str(sample_time)+','+str(phase)+'\n')
 
 def movingWinFilter(input,window,outFile=True,inFile=True):
