@@ -2,8 +2,6 @@
 Source code for extracting data from raw signal
 @author Panneer Selvam Santhalingam
 2/5/2018
-
-
 '''
 
 import cmath
@@ -14,6 +12,8 @@ import matplotlib.pyplot as plt
 import copy as cp
 import glob
 import multiprocessing as mp
+from scipy.spatial.distance import euclidean
+from fastdtw import fastdtw
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -189,7 +189,6 @@ def down_sample(sampleFile,factor,order,file=True):
 	final_iteration=factor%10
 	if iterations>0:
 		for i in range(0,iterations):
-			print(samples.shape)
 			samples=decimate(samples,10,order)
 	if final_iteration>0:
 		samples=decimate(samples,final_iteration,order)
@@ -231,28 +230,43 @@ def plotDatafromDict(pltDict):
 	plt.show()
 
 def buildAmplitudes():
-	files=glob.glob('*_*')
+	files=glob.glob('*ding_3*')
 	mp.set_start_method('fork')
 	for file in files:
-		if '.py' not in file:
+		if '.py' not in file and 'Hz' not in file:
 			p=mp.Process(target=getAmpPhase,args=(file,))
 			p.start()
 			p.join()
+	return
 
-def ApplyFilters(low,high):
-	files=glob.glob('*_*')
+def buildFilteredFile(b1,a1,b2,a2,file,low,high):
+	sampled1=down_sample(file,20,6)
+	filtered1=apply_filter(b1,a1,sampled1)
+	sampled2=down_sample(filtered1,12,6,file=False)
+	filtered2=apply_filter(b2,a2,sampled2)
+	output=open(file+'_'+str(low)+'-'+str(high)+'Hz','w')
+	time_slot=1/5000
+	time=np.linspace(0,time_slot*len(filtered2),len(filtered2))
+	for i in range(len(time)):
+		output.write(str(time[i].round(9))+','+str(filtered2[i].round(9))+'\n')
+	output.close()
+	return
+
+def buildFiltered(low,high):
+	files=glob.glob('*ding*')
+	mp.set_start_method('fork')
 	b1,a1=build_filter(6,high,None,'lowpass',100000.0,'ellip',.01,40)
 	b2,a2=build_filter(6,low,None,'highpass',5000.0,'ellip',.01,80)
 	for file in files:
-		if '.py' not in file:
-			sampled1=down_sample(file,20,6)
-			filtered1=apply_filter(b1,a1,sampled1)
-			sampled2=down_sample(filtered1,12,6,file=False)
-			filtered2=apply_filter(b2,a2,sampled2)
-			output=open(file+'_'+low+high+'Hz')
+		if '.py' not in file and 'Hz' not in file and 'A' in file:
+			p=mp.Process(target=buildFilteredFile,args=(b1,a1,b2,a2,file,low,high,))
+			p.start()
+			p.join()
 	return
 
-
+def buildLabels():
+	file=glob.glob('*100Hz*')
+		
 
 #Size of file being used 33748110
 #din1ca 134918751
@@ -279,4 +293,5 @@ plotData(filtered1,filtered2,100000,5000,file=False)
 #plotDatafromDict(plt_dict)
 #build_spectrogram(filtered2,500,0,None,5000,False)
 
-buildAmplitudes()
+#buildAmplitudes()
+buildFiltered(10,200)
