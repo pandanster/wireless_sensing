@@ -12,6 +12,7 @@ import pandas as pd
 from scipy.signal import spectrogram, iirfilter,freqz,decimate,filtfilt
 import matplotlib.pyplot as plt
 import copy as cp
+import glob
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -211,9 +212,9 @@ def plotData(dataFile,filtered,fs1,fs2,file=True):
 	plt.grid(True)
 	plt.show()
 
-def plotDatafromDict(**kwargs):
+def plotDatafromDict(pltDict):
 	plt.title('time vs amplitude plot')
-	for title,values in kwargs:
+	for title,values in pltDict:
 		if values['file'] == True:
 			data=pd.read_csv(values['data'],names=['val']).round(9)
 			data=data['val'].iloc[:].values
@@ -226,13 +227,19 @@ def plotDatafromDict(**kwargs):
 	plt.grid(True)
 	plt.show()
 
+def buildAmplitudes():
+	files=glob.glob('*_*')
+	for file in files:
+		if '.py' not in file:
+			getAmpPhase(file)
+
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
 '''
 Low pass at 200 Hz order 6 rp=.01, rs=40
 High pass at 10 Hz 6 rp=.01 and rs =80
-'''
+
 
 b1,a1=build_filter(6,150.0,None,'lowpass',100000.0,'ellip',.01,40)
 b2,a2=build_filter(6,10.0,None,'highpass',5000.0,'ellip',.01,80)
@@ -240,14 +247,15 @@ sampled1=down_sample('ahos_1_hA',20,6)
 filtered1=apply_filter(b1,a1,sampled1)
 sampled2=down_sample(filtered1,12,6,file=False)
 filtered2=apply_filter(b2,a2,sampled2)
-#noiseRemoved=movingWinFilter(filtered2,100,False,False)
-#plotData(filtered1,filtered2,100000,5000,file=False)
 
+#noiseRemoved=movingWinFilter(filtered2,100,False,False)
+plotData(filtered1,filtered2,100000,5000,file=False)
+'''
 #getAmpPhase('ahos_1_r')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
-plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
-plotDatafromDict(plt_dict)
+#plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
+#plotDatafromDict(plt_dict)
 #build_spectrogram(filtered2,500,0,None,5000,False)
 
-
+buildAmplitudes()
