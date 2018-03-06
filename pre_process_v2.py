@@ -264,9 +264,36 @@ def buildFiltered(low,high):
 			p.join()
 	return
 
-def buildLabels():
-	file=glob.glob('*100Hz*')
-		
+def buildLabels(file,train,test):
+	data=pd.read_csv(file,names=['name','start','end','label'])
+	trainData=	data.iloc[:train]
+	testData=data.iloc[test:]
+	output=open('results','w')
+	database=[]
+	for i in range(train):
+		file=pd.read_csv(trainData.iloc[i]['name'],names=('time','val'))
+		file=file['val'].iloc[trainData.iloc[0]['start']:trainData.iloc[0]['end']]
+		database.append([file.tolist(),trainData.iloc[i]['label']])
+	for i in range(testData.shape[0]):
+		predictions={'h1':0,'h2':0,'h3':0,5:0}
+		distances=[]
+		testFile=pd.read_csv(testData.iloc[i]['name'],names=('time','val'))
+		testFile=testFile['val'].iloc[testData.iloc[0]['start']:testData.iloc[0]['end']]
+		for j in range(train):
+			distance,path=fastdtw(testFile.tolist(),database[j][0],dist=euclidean)
+			distances.append([distance,database[j][1]])
+		sortedDistances=sorted(distances,key=lambda x: x[0])
+		for k in range(10):
+			predictions[sortedDistances[k][1]]+=1
+		max=-1
+		predicted=None
+		for key in predictions.keys():
+			if max< predictions[key]:
+				max=predictions[key]
+				predicted=key
+		output.write("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+'\n')
+
+
 
 #Size of file being used 33748110
 #din1ca 134918751
