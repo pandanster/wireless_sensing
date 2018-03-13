@@ -7,7 +7,7 @@ Source code for extracting data from raw signal
 import cmath
 import numpy as np
 import pandas as pd
-from scipy.signal import spectrogram, iirfilter,freqz,decimate,filtfilt
+from scipy.signal import spectrogram, iirfilter,freqz,decimate,filtfilt,correlate
 import matplotlib.pyplot as plt
 import copy as cp
 import glob
@@ -15,6 +15,7 @@ import multiprocessing as mp
 from scipy.spatial.distance import euclidean
 from fastdtw import fastdtw
 import time
+import os
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -275,13 +276,10 @@ def buildLabels(file,train,test):
 		file=pd.read_csv(trainData.iloc[i]['name'],names=('time','val'))
 		file=file['val'].iloc[trainData.iloc[i]['start']:trainData.iloc[i]['end']]
 		database.append([file.tolist(),trainData.iloc[i]['label'],trainData.iloc[i]['name']])
-	print("done with  database creation\n")
 	for i in range(testData.shape[0]):
 		predictions={'h1':0,'h2':0,'h3':0,'5':0,'m':0}
 		file=file['val'].iloc[trainData.iloc[0]['start']:trainData.iloc[0]['end']]
 		database.append([file.tolist(),trainData.iloc[i]['label']])
-	for i in range(testData.shape[0]):
-		predictions={'h1':0,'h2':0,'h3':0,5:0}
 		distances=[]
 		testFile=pd.read_csv(testData.iloc[i]['name'],names=('time','val'))
 		testFile=testFile['val'].iloc[testData.iloc[0]['start']:testData.iloc[0]['end']]
@@ -292,8 +290,6 @@ def buildLabels(file,train,test):
 		sortedDistances=sorted(distances,key=lambda x: x[0])
 		output.write(str(sortedDistances))
 		output.write('\n')
-			distances.append([distance,database[j][1]])
-		sortedDistances=sorted(distances,key=lambda x: x[0])
 		for k in range(10):
 			predictions[sortedDistances[k][1]]+=1
 		max=-1
@@ -304,8 +300,23 @@ def buildLabels(file,train,test):
 				predicted=key
 		print("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+'\n')
 		output.write("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+' File: '+testData.iloc[i]['name']+'\n')
-		output.write("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+'\n')
+		
 
+def getCorrelated(file1,file2):
+	sig1=pd.read_csv(file1,names=['time','val'])
+	sig2=pd.read_csv(file2,names=['time','val'])
+	correlated=correlate(sig1['val'].values,sig2['val'].values)
+	output=open(file1[:-9]+'_corr','w')
+	for i in range(correlated.shape[0]):
+		output.write(str(correlated[i])+'\n')
+
+def buildCorrelated():
+	files=glob.glob('*ahosain*')
+	mp.set_start_method('fork')
+	for file in files:
+		if '.py' not in file and 'Hz' in file and os.path.isdir(file) == False:
+			getCorrelated(file[:-9]+'_10-100Hz',file[:-9]+'_10-200Hz')
+				
 
 
 #Size of file being used 33748110
@@ -335,8 +346,9 @@ plotData(filtered1,filtered2,100000,5000,file=False)
 
 #buildAmplitudes()
 #buildFiltered(10,200)
-buildLabels('segmentations.csv',70,70)
+#buildLabels('segmentations.csv',70,70)
 #build_spectrogram(filtered2,500,0,None,5000,False)
 
 #buildAmplitudes()
-buildFiltered(10,200)
+#buildFiltered(10,200)
+buildCorrelated()
