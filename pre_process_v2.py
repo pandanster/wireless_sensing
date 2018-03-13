@@ -15,6 +15,7 @@ import multiprocessing as mp
 from scipy.spatial.distance import euclidean
 from fastdtw import fastdtw
 import time
+
 sample_rate=10e6 
 time_slot=1/sample_rate
 
@@ -277,6 +278,10 @@ def buildLabels(file,train,test):
 	print("done with  database creation\n")
 	for i in range(testData.shape[0]):
 		predictions={'h1':0,'h2':0,'h3':0,'5':0,'m':0}
+		file=file['val'].iloc[trainData.iloc[0]['start']:trainData.iloc[0]['end']]
+		database.append([file.tolist(),trainData.iloc[i]['label']])
+	for i in range(testData.shape[0]):
+		predictions={'h1':0,'h2':0,'h3':0,5:0}
 		distances=[]
 		testFile=pd.read_csv(testData.iloc[i]['name'],names=('time','val'))
 		testFile=testFile['val'].iloc[testData.iloc[0]['start']:testData.iloc[0]['end']]
@@ -287,6 +292,8 @@ def buildLabels(file,train,test):
 		sortedDistances=sorted(distances,key=lambda x: x[0])
 		output.write(str(sortedDistances))
 		output.write('\n')
+			distances.append([distance,database[j][1]])
+		sortedDistances=sorted(distances,key=lambda x: x[0])
 		for k in range(10):
 			predictions[sortedDistances[k][1]]+=1
 		max=-1
@@ -297,6 +304,7 @@ def buildLabels(file,train,test):
 				predicted=key
 		print("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+'\n')
 		output.write("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+' File: '+testData.iloc[i]['name']+'\n')
+		output.write("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+'\n')
 
 
 
@@ -328,3 +336,7 @@ plotData(filtered1,filtered2,100000,5000,file=False)
 #buildAmplitudes()
 #buildFiltered(10,200)
 buildLabels('segmentations.csv',70,70)
+#build_spectrogram(filtered2,500,0,None,5000,False)
+
+#buildAmplitudes()
+buildFiltered(10,200)
