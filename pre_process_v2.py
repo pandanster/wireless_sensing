@@ -2,8 +2,6 @@
 Source code for extracting data from raw signal
 @author Panneer Selvam Santhalingam
 2/5/2018
-
-
 '''
 
 import cmath
@@ -12,7 +10,11 @@ import pandas as pd
 from scipy.signal import spectrogram, iirfilter,freqz,decimate,filtfilt
 import matplotlib.pyplot as plt
 import copy as cp
-
+import glob
+import multiprocessing as mp
+from scipy.spatial.distance import euclidean
+from fastdtw import fastdtw
+import time
 sample_rate=10e6 
 time_slot=1/sample_rate
 
@@ -34,6 +36,8 @@ def getAmpPhase(file):
 		sample_time+=time_slot
 		amp,phase=cmath.polar(val)
 		ampFile.write(str(round(amp,10))+'\n')
+	ampFile.close()
+	f.close()
 	#	phaseFile.write(str(sample_time)+','+str(phase)+'\n')
 
 def movingWinFilter(input,window,outFile=True,inFile=True):
@@ -185,7 +189,6 @@ def down_sample(sampleFile,factor,order,file=True):
 	final_iteration=factor%10
 	if iterations>0:
 		for i in range(0,iterations):
-			print(samples.shape)
 			samples=decimate(samples,10,order)
 	if final_iteration>0:
 		samples=decimate(samples,final_iteration,order)
@@ -211,13 +214,99 @@ def plotData(dataFile,filtered,fs1,fs2,file=True):
 	plt.grid(True)
 	plt.show()
 
+def plotDatafromDict(pltDict):
+	plt.title('time vs amplitude plot')
+	for title,values in pltDict:
+		if values['file'] == True:
+			data=pd.read_csv(values['data'],names=['val']).round(9)
+			data=data['val'].iloc[:].values
+		else:
+			data=values['data']
+		time_slot=1/values['fs']
+		time=np.linspace(0,time_slot*len(data),len(data))
+		plt.plot(time,data,label=key)
+	plt.legend(loc='best')
+	plt.grid(True)
+	plt.show()
+
+def buildAmplitudes():
+	files=glob.glob('*ding_3*')
+	mp.set_start_method('fork')
+	for file in files:
+		if '.py' not in file and 'Hz' not in file:
+			p=mp.Process(target=getAmpPhase,args=(file,))
+			p.start()
+			p.join()
+	return
+
+def buildFilteredFile(b1,a1,b2,a2,file,low,high):
+	sampled1=down_sample(file,20,6)
+	filtered1=apply_filter(b1,a1,sampled1)
+	sampled2=down_sample(filtered1,12,6,file=False)
+	filtered2=apply_filter(b2,a2,sampled2)
+	output=open(file+'_'+str(low)+'-'+str(high)+'Hz','w')
+	time_slot=1/5000
+	time=np.linspace(0,time_slot*len(filtered2),len(filtered2))
+	for i in range(len(time)):
+		output.write(str(time[i].round(9))+','+str(filtered2[i].round(9))+'\n')
+	output.close()
+	return
+
+def buildFiltered(low,high):
+	files=glob.glob('*ding*')
+	mp.set_start_method('fork')
+	b1,a1=build_filter(6,high,None,'lowpass',100000.0,'ellip',.01,40)
+	b2,a2=build_filter(6,low,None,'highpass',5000.0,'ellip',.01,80)
+	for file in files:
+		if '.py' not in file and 'Hz' not in file and 'A' in file:
+			p=mp.Process(target=buildFilteredFile,args=(b1,a1,b2,a2,file,low,high,))
+			p.start()
+			p.join()
+	return
+
+def buildLabels(file,train,test):
+	data=pd.read_csv(file,names=['name','start','end','label'])
+	trainData=	data.iloc[:train]
+	testData=data.iloc[test:]
+	output=open('results','w')
+	database=[]
+	for i in range(train):
+		file=pd.read_csv(trainData.iloc[i]['name'],names=('time','val'))
+		file=file['val'].iloc[trainData.iloc[i]['start']:trainData.iloc[i]['end']]
+		database.append([file.tolist(),trainData.iloc[i]['label'],trainData.iloc[i]['name']])
+	print("done with  database creation\n")
+	for i in range(testData.shape[0]):
+		predictions={'h1':0,'h2':0,'h3':0,'5':0,'m':0}
+		distances=[]
+		testFile=pd.read_csv(testData.iloc[i]['name'],names=('time','val'))
+		testFile=testFile['val'].iloc[testData.iloc[0]['start']:testData.iloc[0]['end']]
+		for j in range(train):
+			distance,path=fastdtw(testFile.tolist(),database[j][0],dist=euclidean)
+			distances.append([distance,database[j][1],database[j][2]])
+#			print(str(j)+','+str(time.time()))
+		sortedDistances=sorted(distances,key=lambda x: x[0])
+		output.write(str(sortedDistances))
+		output.write('\n')
+		for k in range(10):
+			predictions[sortedDistances[k][1]]+=1
+		max=-1
+		predicted=None
+		for key in predictions.keys():
+			if max< predictions[key]:
+				max=predictions[key]
+				predicted=key
+		print("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+'\n')
+		output.write("Predicted: "+predicted+" Actual: "+testData.iloc[i]['label']+' File: '+testData.iloc[i]['name']+'\n')
+
+
+
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
 '''
 Low pass at 200 Hz order 6 rp=.01, rs=40
 High pass at 10 Hz 6 rp=.01 and rs =80
-'''
+
 
 b1,a1=build_filter(6,150.0,None,'lowpass',100000.0,'ellip',.01,40)
 b2,a2=build_filter(6,10.0,None,'highpass',5000.0,'ellip',.01,80)
@@ -225,12 +314,17 @@ sampled1=down_sample('ahos_1_hA',20,6)
 filtered1=apply_filter(b1,a1,sampled1)
 sampled2=down_sample(filtered1,12,6,file=False)
 filtered2=apply_filter(b2,a2,sampled2)
-#noiseRemoved=movingWinFilter(filtered2,100,False,False)
-#plotData(filtered1,filtered2,100000,5000,file=False)
 
+#noiseRemoved=movingWinFilter(filtered2,100,False,False)
+plotData(filtered1,filtered2,100000,5000,file=False)
+'''
 #getAmpPhase('ahos_1_r')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
-build_spectrogram(filtered2,500,0,None,5000,False)
+#plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
+#plotDatafromDict(plt_dict)
+#build_spectrogram('psanthal_h_3_5A_10-100Hz',500,0,None,5000,False)
 
-
+#buildAmplitudes()
+#buildFiltered(10,200)
+buildLabels('segmentations.csv',70,70)
