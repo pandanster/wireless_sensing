@@ -1,6 +1,8 @@
 import numpy as np
 import scipy as sp
 import mlpy
+from fastdtw import fastdtw
+from scipy.spatial.distance import euclidean
 
 def getMean(data):
 	result = np.mean(data)
@@ -135,4 +137,4 @@ def getCorr(datax, datay, dataz):
 
 
 def getDTWDist(data1,data2):
-	return mlpy.dtw_std(data1,data2,dist_only=True)
+	return fastdtw(data1,data2,dist=euclidean)
