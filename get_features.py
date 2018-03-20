@@ -97,7 +97,7 @@ def getFFTPeaks(data):
 
 def getEnergy(data):
 	data_fft = sp.fft(data)
-	data_fft_half = data_fft[1:(len(data_fft)/2+1)]
+	data_fft_half = data_fft[1:int(len(data_fft)/2+1)]
 	data_fft_half_abs = np.abs(data_fft_half)
 	result = np.sum(data_fft_half_abs**2)
 	result = result/len(data_fft_half)
