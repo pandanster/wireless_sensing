@@ -345,7 +345,8 @@ plotData(filtered1,filtered2,100000,5000,file=False)
 
 #buildAmplitudes()
 #buildFiltered(10,200)
-buildLabels('segmentations.csv',69,69)
+=======
+#buildLabels('segmentations.csv',70,70)
 #build_spectrogram(filtered2,500,0,None,5000,False)
 
 #buildAmplitudes()
