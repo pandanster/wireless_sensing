@@ -1,5 +1,6 @@
 import numpy as np
 import scipy as sp
+import mlpy
 
 def getMean(data):
 	result = np.mean(data)
@@ -131,3 +132,7 @@ def getCorr(datax, datay, dataz):
 	result1 = np.corrcoef(datax, dataz)
 	result2 = np.corrcoef(datay, dataz)
 	return [result0[0][1], result1[0][1], result2[0][1]]
+
+
+def getDTWDist(data1,data2):
+	return mlpy.dtw_std(data1,data2,dist_only=True)
