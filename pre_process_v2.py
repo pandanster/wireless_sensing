@@ -17,6 +17,7 @@ from fastdtw import fastdtw
 import time
 import os
 import mlpy
+import get_features as gf
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -311,11 +312,50 @@ def getCorrelated(file1,file2):
 
 def buildCorrelated():
 	files=glob.glob('*Hz*')
-	mp.set_start_method('fork')
 	for file in files:
 		if '.py' not in file and 'Hz' in file and os.path.isdir(file) == False:
 			getCorrelated(file[:-9]+'_10-100Hz',file[:-9]+'_10-150Hz')
 				
+
+def getMeanDist(database,inData,inFile,label):
+	data=pd.read_csv(file,names=['name','start','end','label'])
+	data=data[data['label']==label]
+	totalDist=0
+	for i in range(data.shape[0]):
+		if data[i]['name']==inFile:
+			continue
+		compFile=pd.read_csv(data[i]['name'],names=['time'],['val'])
+		compFile=compFile['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
+		totalDist+=gf.getDTWDist(inData,compFile.tolist())
+	return totalDist/data.shape[0]
+
+def getFeatures(database,inData,inFile,inLabel,labels,outFile):
+	featureVector=[]
+	for label in labels:
+		featureVector.append(getMeanDist(database,inData,inFile,label))
+	featureVector.append(gf.getMean(inData))
+	featureVector.append(gf.getArea(inData))
+	featureVector.append(gf.getAbsMean(inData))
+	featureVector.append(gf.getAbsArea(inData))
+	featureVector.append(gf.getEntropy(inData))
+	featureVector.append(gf.getSkew(inData))
+	featureVector.append(gf.getKur(inData))
+	quartiles=gf.getQuartiles(inData)
+	featureVector.append(gf.getIQR(quartiles[2],quartiles[1]))
+	featureVector.append(gf.getFFTPeaks(inData))
+	featureVector.append(gf.getEnergy(inData))
+	outFile.append(','.join(featureVector)+','+inFile+','+inLabel)
+
+def buildFeatures(dataFile,labels):
+	data=pd.read_csv(file,names=['name','start','end','label'])
+	mp.set_start_method('fork')
+	outFile=open('featureFile','a')
+	for i in range(data.shape[0]):
+		inData=pd.read_csv(data.iloc[i]['name'],names=('time','val'))
+		inData=inData['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
+		p=mp.Process(target=getFeatures,args=(dataFile,inData,data.iloc[i]['name'],data.iloc[i]['label'],labels,outFile,))
+		p.start()
+		p.join()
 
 
 #Size of file being used 33748110
@@ -342,13 +382,4 @@ plotData(filtered1,filtered2,100000,5000,file=False)
 #plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
 #plotDatafromDict(plt_dict)
 #build_spectrogram('psanthal_h_3_5A_10-100Hz',500,0,None,5000,False)
-
-#buildAmplitudes()
-#buildFiltered(10,200)
-=======
-#buildLabels('segmentations.csv',70,70)
-#build_spectrogram(filtered2,500,0,None,5000,False)
-
-#buildAmplitudes()
-#buildFiltered(10,200)
-#buildCorrelated()
+buildFeatures('segmentations.csv',['h1','h2','h3','5','m'])
