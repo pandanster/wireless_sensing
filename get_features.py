@@ -137,5 +137,6 @@ def getCorr(datax, datay, dataz):
 
 
 def getDTWDist(data1,data2):
-	distance,path= fastdtw(data1,data2,dist=euclidean)
-	return distance
+#	distance,path= fastdtw(data1,data2,dist=euclidean)
+	return  mlpy.dtw_std(data1,data2,dist_only=True)
+#	return distance

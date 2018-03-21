@@ -1,3 +1,7 @@
+import sys
+
+
+sys.settrace
 '''
 Source code for extracting data from raw signal
 @author Panneer Selvam Santhalingam
@@ -16,7 +20,7 @@ from scipy.spatial.distance import euclidean
 from fastdtw import fastdtw
 import time
 import os
-import mlpy
+#import mlpy
 import get_features as gf
 
 sample_rate=10e6 
@@ -318,19 +322,20 @@ def buildCorrelated():
 				
 
 def getMeanDist(database,inData,inFile,label):
-	data=pd.read_csv(file,names=['name','start','end','label'])
+	data=pd.read_csv(database,names=['name','start','end','label'])
 	data=data[data['label']==label]
 	totalDist=0
 	for i in range(data.shape[0]):
-		if data[i]['name']==inFile:
+		if data.iloc[i]['name']==inFile:
 			continue
-		compFile=pd.read_csv(data[i]['name'],names=['time'],['val'])
+		compFile=pd.read_csv(data.iloc[i]['name'],names=['time','val'])
 		compFile=compFile['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
 		totalDist+=gf.getDTWDist(inData,compFile.tolist())
 	return totalDist/data.shape[0]
 
-def getFeatures(database,inData,inFile,inLabel,labels,outFile):
+def getFeatures(database,inData,inFile,inLabel,labels):
 	featureVector=[]
+	outFile=open('feautreFile','a')
 	for label in labels:
 		featureVector.append(getMeanDist(database,inData,inFile,label))
 	featureVector.append(gf.getMean(inData))
@@ -342,21 +347,22 @@ def getFeatures(database,inData,inFile,inLabel,labels,outFile):
 	featureVector.append(gf.getKur(inData))
 	quartiles=gf.getQuartiles(inData)
 	featureVector.append(gf.getIQR(quartiles[2],quartiles[1]))
-	featureVector.append(gf.getFFTPeaks(inData))
+	featureVector.append(','.join([str(x) for x in gf.getFFTPeaks(inData)]))
 	featureVector.append(gf.getEnergy(inData))
-	outFile.append(','.join(featureVector)+','+inFile+','+inLabel)
+	featureVector=[str(x) for x in featureVector]
+	outFile.write(','.join(featureVector)+','+inFile+','+inLabel+'\n')
+	return
 
 def buildFeatures(dataFile,labels):
-	data=pd.read_csv(file,names=['name','start','end','label'])
+	data=pd.read_csv(dataFile,names=['name','start','end','label'])
 	mp.set_start_method('fork')
-	outFile=open('featureFile','a')
 	for i in range(data.shape[0]):
 		inData=pd.read_csv(data.iloc[i]['name'],names=('time','val'))
 		inData=inData['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
-		p=mp.Process(target=getFeatures,args=(dataFile,inData,data.iloc[i]['name'],data.iloc[i]['label'],labels,outFile,))
+		p=mp.Process(target=getFeatures,args=(dataFile,inData,data.iloc[i]['name'],data.iloc[i]['label'],labels,))
 		p.start()
 		p.join()
-
+	return
 
 #Size of file being used 33748110
 #din1ca 134918751
