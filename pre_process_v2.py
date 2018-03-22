@@ -22,6 +22,7 @@ import time
 import os
 #import mlpy
 import get_features as gf
+from sklearn.tree import DecisionTreeClassifier
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -288,7 +289,7 @@ def buildLabels(file,train,test):
 		testFile=pd.read_csv(testData.iloc[i]['name'],names=('time','val'))
 		testFile=testFile['val'].iloc[testData.iloc[i]['start']:testData.iloc[i]['end']]
 		for j in range(train):
-			distance=mlpy.dtw_std(testFile.tolist(),database[j][0],dist_only=True)
+			distance,path=fastdtw(testFile.tolist(),database[j][0],dist=euclidean)
 			distances.append([distance,database[j][1],database[j][2]])
 #			print(str(j)+','+str(time.time()))
 		sortedDistances=sorted(distances,key=lambda x: x[0])
@@ -325,13 +326,15 @@ def getMeanDist(database,inData,inFile,label):
 	data=pd.read_csv(database,names=['name','start','end','label'])
 	data=data[data['label']==label]
 	totalDist=0
+	totalcount=0
 	for i in range(data.shape[0]):
 		if data.iloc[i]['name']==inFile:
 			continue
 		compFile=pd.read_csv(data.iloc[i]['name'],names=['time','val'])
 		compFile=compFile['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
 		totalDist+=gf.getDTWDist(inData,compFile.tolist())
-	return totalDist/data.shape[0]
+		totalcount+=1
+	return totalDist/totalcount
 
 def getFeatures(database,inData,inFile,inLabel,labels):
 	featureVector=[]
@@ -364,6 +367,25 @@ def buildFeatures(dataFile,labels):
 		p.join()
 	return
 
+def buildTree(trainData,trainLabels,depth):
+	dtc= DecisionTreeClassifier(max_depth=depth)
+	dtc.fit(trainData.values,trainLabels.values)
+	return dtc
+
+def makePredictions(dataFile,train,test):
+	data=pd.read_csv(dataFile,header=None)
+	trainData=data.iloc[:train]
+	testData=data.iloc[test:]
+	print(data.shape,trainData.shape,testData.shape)
+	output=open('results','w')
+	dtc=buildTree(trainData.iloc[:,0:19],trainData.iloc[:,20:21],5)
+	for i in range(testData.shape[0]):
+		predicted=dtc.predict(testData.iloc[i,0:19].values.reshape(1,-1))
+		print('predicted')
+		print(predicted)
+		print('Actual')
+		print(testData.iloc[i,20:21].values)
+		print('next\n')
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
@@ -388,4 +410,5 @@ plotData(filtered1,filtered2,100000,5000,file=False)
 #plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
 #plotDatafromDict(plt_dict)
 #build_spectrogram('psanthal_h_3_5A_10-100Hz',500,0,None,5000,False)
-buildFeatures('segmentations.csv',['h1','h2','h3','5','m'])
+#buildFeatures('segmentations.csv',['h1','h2','h3','5','m'])
+makePredictions('feautreFile',70,69)
