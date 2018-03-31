@@ -35,21 +35,29 @@ time_slot=1/sample_rate
 #File naming convention s-sine, a-ahosain, r-reflection, g-gesture, cal - standing calibration, calW - wall calibration
 
 
-def getAmpPhase(file):
-	sample_time=0
-	ampArray=[]
-	phaseArray=[]
-	count=1
-	ampFile=open(file+'A','w')
-	#phaseFile=open("sarg41P",'w')
+def getAmpPhase(file,b1=None,a1=None,b2=None,a2=None,low=None,high=None,mode=0):
 	f=open(file,'rb')
 	data=np.fromfile(f,"complex64",-1,"")
+	file_amp=[]
 	for val in data:
-		sample_time+=time_slot
 		amp,phase=cmath.polar(val)
-		ampFile.write(str(round(amp,10))+'\n')
-	ampFile.close()
-	f.close()
+		file_amp.append(amp)
+	if mode==1:
+		print('came to mode')
+		sampled1=down_sample(np.array(file_amp),20,6,file=False)
+		filtered1=apply_filter(b1,a1,sampled1)
+		sampled2=down_sample(filtered1,12,6,file=False)
+		filtered2=apply_filter(b2,a2,sampled2)
+		output=open(file+'_'+str(low)+'-'+str(high)+'Hz','w')
+		time_slot=1/5000
+		time=np.linspace(0,time_slot*len(filtered2),len(filtered2))
+		for i in range(len(time)):
+			output.write(str(time[i].round(9))+','+str(filtered2[i].round(9))+'\n')
+		output.close()
+		f.close()
+		return
+	else:
+		return np.array(file_amp)
 	#	phaseFile.write(str(sample_time)+','+str(phase)+'\n')
 
 def movingWinFilter(input,window,outFile=True,inFile=True):
@@ -106,7 +114,7 @@ def windowMedian(inFile,window):
 
 def build_spectrogram(input,window,start,end,fs,inFile=True):
 	if inFile==True:
-		file=pd.read_csv(input,names=['val'])
+		file=pd.read_csv(input,names=['time','val'])
 	else:
 		file=pd.DataFrame(input,columns=['val'])
 	a=[]
@@ -115,7 +123,7 @@ def build_spectrogram(input,window,start,end,fs,inFile=True):
 	maxAmp=0
 	count=0
 	gfile=open('gplot_file','w')
-	time_slot=fs/window
+	time_slot=window/fs
 	for i in range(0,file.shape[0],window):
 		if i+window > file.shape[0]:
 			break
@@ -127,7 +135,7 @@ def build_spectrogram(input,window,start,end,fs,inFile=True):
 		if end != None and count > (end*time_slot):
 			break
 		count+=1
-	t=np.linspace(start,start+time_slot*len(a)*window,len(a)).tolist()
+	t=np.linspace(start,start+time_slot*len(a),len(a)).tolist()
 	#t=np.linspace(0,time_slot*file.shape[0],len(a)).tolist()
 	f=np.fft.rfftfreq(window,1/fs).tolist()
 	x,y=np.meshgrid(t,f)
@@ -241,12 +249,14 @@ def plotDatafromDict(pltDict):
 	plt.grid(True)
 	plt.show()
 
-def buildAmplitudes():
-	files=glob.glob('*ding_3*')
-	mp.set_start_method('fork')
+def buildPreProcessed(low,high):
+	files=glob.glob('*ahosain*')
+	#mp.set_start_method('fork')
+	b1,a1=build_filter(6,high,None,'lowpass',100000.0,'ellip',.01,40)
+	b2,a2=build_filter(6,low,None,'highpass',5000.0,'ellip',.01,80)	
 	for file in files:
 		if '.py' not in file and 'Hz' not in file:
-			p=mp.Process(target=getAmpPhase,args=(file,))
+			p=mp.Process(target=getAmpPhase,args=(file,b1,a1,b2,a2,low,high,1,))
 			p.start()
 			p.join()
 	return
@@ -404,23 +414,12 @@ def makePredictions(dataFile,train,test):
 '''
 Low pass at 200 Hz order 6 rp=.01, rs=40
 High pass at 10 Hz 6 rp=.01 and rs =80
-
-
-b1,a1=build_filter(6,150.0,None,'lowpass',100000.0,'ellip',.01,40)
-b2,a2=build_filter(6,10.0,None,'highpass',5000.0,'ellip',.01,80)
-sampled1=down_sample('ahos_1_hA',20,6)
-filtered1=apply_filter(b1,a1,sampled1)
-sampled2=down_sample(filtered1,12,6,file=False)
-filtered2=apply_filter(b2,a2,sampled2)
-
-#noiseRemoved=movingWinFilter(filtered2,100,False,False)
-plotData(filtered1,filtered2,100000,5000,file=False)
 '''
-#getAmpPhase('ahos_1_r')
 #windowAverage('psanthal_1_cA_4',1000)
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
 #plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
 #plotDatafromDict(plt_dict)
-#build_spectrogram('psanthal_h_3_5A_10-100Hz',500,0,None,5000,False)
+#build_spectrogram('ahosain_5_1_10-100Hz',500,0,None,5000)
 #buildFeatures('segmentations.csv',['h1','h2','h3','5','m'])
-makePredictions('feautreFile',70,69)
+#makePredictions('feautreFile',70,69)
+#buildPreProcessed(10,100)
