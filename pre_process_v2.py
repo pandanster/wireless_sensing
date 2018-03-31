@@ -23,6 +23,9 @@ import os
 #import mlpy
 import get_features as gf
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import export_graphviz
+import io
+import pydotplus
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -372,6 +375,12 @@ def buildTree(trainData,trainLabels,depth):
 	dtc.fit(trainData.values,trainLabels.values)
 	return dtc
 
+def printTree(dtree,features):
+	dotfile=io.StringIO()
+	export_graphviz(decision_tree=dtree,feature_names=features,out_file=dotfile,class_names=['5','h1','h2','h3','m'])
+	graph=pydotplus.graph_from_dot_data(dotfile.getvalue())
+	graph.write_png("dtree.png")
+
 def makePredictions(dataFile,train,test):
 	data=pd.read_csv(dataFile,header=None)
 	trainData=data.iloc[:train]
@@ -379,6 +388,8 @@ def makePredictions(dataFile,train,test):
 	print(data.shape,trainData.shape,testData.shape)
 	output=open('results','w')
 	dtc=buildTree(trainData.iloc[:,0:19],trainData.iloc[:,20:21],5)
+	printTree(dtc,['h1','h2','h3','5','m','mean','area','abs_mean','abs_area','entropy','skew','kur','iqr','fft1','fft2','fft3','fft4','fft5','energy'])
+	'''
 	for i in range(testData.shape[0]):
 		predicted=dtc.predict(testData.iloc[i,0:19].values.reshape(1,-1))
 		print('predicted')
@@ -386,6 +397,7 @@ def makePredictions(dataFile,train,test):
 		print('Actual')
 		print(testData.iloc[i,20:21].values)
 		print('next\n')
+		'''
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
