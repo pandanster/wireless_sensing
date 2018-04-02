@@ -26,6 +26,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_graphviz
 import io
 import pydotplus
+from numpy import trapz
 
 sample_rate=10e6 
 time_slot=1/sample_rate
@@ -72,6 +73,7 @@ def getAmp(file,sample_rate):
 		amp,phase=cmath.polar(val)
 		output.write(str(sample_time)+','+str(round(amp,9))+'\n')
 	return
+
 def getPhase(file,sample_rate):
 	time_slot=1/sample_rate
 	sample_time=0
@@ -201,8 +203,7 @@ def plotAvgfreq(input,window,start,end,fs,inFile=True):
 		count+=1
 	t=np.linspace(start,start+time_slot*len(a),len(a)).tolist()
 	for i in range(len(a)-10):
-		print(str(t[i])+','+str(t[i+10])+','+str(np.var(a[i:i+10])))
-
+		print(str(t[i])+','+str(t[i+10])+','+str(trapz(a[i:i+10],dx=time_slot)))
 	plt.plot(t,a)
 	plt.xlabel('Time')
 	plt.ylabel('Amplitude')
