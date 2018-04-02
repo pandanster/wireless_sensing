@@ -192,7 +192,6 @@ def plotAvgfreq(input,window,start,end,fs,inFile=True):
 			break
 		x=abs(np.fft.rfft(file['val'].iloc[i:(i+(window))].values).real).tolist()
 		y=[x[i]*f[i] for i in range(len(x))]
-		print(y)
 		if maxAmp<max(x):
 			maxAmp=max(x)
 		if count > (start * time_slot):
@@ -201,9 +200,12 @@ def plotAvgfreq(input,window,start,end,fs,inFile=True):
 			break
 		count+=1
 	t=np.linspace(start,start+time_slot*len(a),len(a)).tolist()
+	for i in range(len(a)-10):
+		print(str(t[i])+','+str(t[i+10])+','+str(np.var(a[i:i+10])))
+
 	plt.plot(t,a)
 	plt.xlabel('Time')
-	plt.ylabel('Frequency')
+	plt.ylabel('Amplitude')
 	plt.show()
 
 def build_phaseogram(input,window,start,end,fs,inFile=True):
