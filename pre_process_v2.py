@@ -175,6 +175,37 @@ def build_spectrogram(input,window,start,end,fs,inFile=True):
 	plt.colorbar(ticks=np.linspace(0,maxAmp,20))
 	plt.show()
 
+def plotAvgfreq(input,window,start,end,fs,inFile=True):
+	if inFile==True:
+		file=pd.read_csv(input,names=['time','val'])
+	else:
+		file=pd.DataFrame(input,columns=['val'])
+	a=[]
+	j=0
+	minAmp=0
+	maxAmp=0
+	count=0
+	time_slot=window/fs
+	f=np.fft.rfftfreq(window,1/fs).tolist()
+	for i in range(0,file.shape[0],window):
+		if i+window > file.shape[0]:
+			break
+		x=abs(np.fft.rfft(file['val'].iloc[i:(i+(window))].values).real).tolist()
+		y=[x[i]*f[i] for i in range(len(x))]
+		print(y)
+		if maxAmp<max(x):
+			maxAmp=max(x)
+		if count > (start * time_slot):
+			a.append(np.mean(y)+np.std(y))
+		if end != None and count > (end*time_slot):
+			break
+		count+=1
+	t=np.linspace(start,start+time_slot*len(a),len(a)).tolist()
+	plt.plot(t,a)
+	plt.xlabel('Time')
+	plt.ylabel('Frequency')
+	plt.show()
+
 def build_phaseogram(input,window,start,end,fs,inFile=True):
 	if inFile==True:
 		file=pd.read_csv(input,names=['time','val'])
@@ -474,8 +505,9 @@ High pass at 10 Hz 6 rp=.01 and rs =80
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
 #plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
 #plotDatafromDict(plt_dict)
-build_phaseogram('ahosain_5_1_10-100Hz',50,0,None,5000)
+plotAvgfreq('ahosain_5_1_10-100Hz',500,0,None,5000)
+#build_spectrogram('ahosain_5_1_10-100Hz',500,0,None,5000)
 #buildFeatures('segmentations.csv',['h1','h2','h3','5','m'])
 #makePredictions('feautreFile',70,69)
 #buildPreProcessed(10,100)
-#getPhase('ahosain_5_1',sample_rate)
+#getAmp('ahosain_5_1',sample_rate)
