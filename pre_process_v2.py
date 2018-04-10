@@ -583,6 +583,22 @@ def getFeatures(database,inData,specData,inFile,inLabel,labels):
 	featureVector=[str(x) for x in featureVector]
 	outFile.write(','.join(featureVector)+','+inFile+','+inLabel+'\n')
 	return
+def writeDistance(data1,file1,data2,file2,label):
+	outFile=open('dtw-time','w')
+	outFile.write(file1+','+file2+','+str(gf.getDTWDist(data1,data2))+'\n')
+
+def computeDistances(dataFile):
+	data=pd.read_csv(dataFile,names=['name','starttime','endtime','start','end','len','signal-qual','label'])
+	for i in range(data.shape[0]):
+		input1=pd.read_csv(data.iloc[i]['name'],names=['time','val'])
+		input1=input1['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
+		for j in range(i+1,data.shape[0]):
+			input2=pd.read_csv(data.iloc[j]['name'],names=['time','val'])
+			input2=input2['val'].iloc[data.iloc[j]['start']:data.iloc[j]['end']]
+			p=mp.Process(target=writeDistance,args=(input1.tolist(),data.iloc[i]['name'],input2.tolist(),data.iloc[j]['name'],data.iloc[j]['label'],))
+			p.start()
+			p.join()
+	return
 
 def buildFeatures(dataFile,labels):
 	data=pd.read_csv(dataFile,names=['name','starttime','endtime','start','end','len','signal-qual','label'])
@@ -636,6 +652,7 @@ def createLabels(dataFile):
 		tokens=line.strip().split(',')
 		label=tokens[0].split('_')[1]
 		outfile.write(line.strip()+','+label+'\n')
+
 
 #Size of file being used 33748110
 #din1ca 134918751
