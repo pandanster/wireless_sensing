@@ -27,7 +27,7 @@ from sklearn.tree import export_graphviz
 import io
 import pydotplus
 from numpy import trapz
-
+import math
 sample_rate=10e6 
 time_slot=1/sample_rate
 
@@ -177,7 +177,7 @@ def build_spectrogram(input,window,start,end,fs,inFile=True):
 	plt.colorbar(ticks=np.linspace(0,maxAmp,20))
 	plt.show()
 
-def plotAvgfreq(input,window,start,end,fs,inFile=True):
+def plotAvgfreq(input,window,start,end,fs,time=None,inFile=True):
 	if inFile==True:
 		file=pd.read_csv(input,names=['time','val'])
 	else:
@@ -202,12 +202,94 @@ def plotAvgfreq(input,window,start,end,fs,inFile=True):
 			break
 		count+=1
 	t=np.linspace(start,start+time_slot*len(a),len(a)).tolist()
-	for i in range(len(a)-10):
-		print(str(t[i])+','+str(t[i+10])+','+str(trapz(a[i:i+10],dx=time_slot)))
+	if time == None:
+		outfile=open('seg-5','a')
+		currMax=0
+		currStart=0
+		currEnd=0
+		currK=0
+		currIndex1=0
+		currIndex2=0
+		for k in [15,20,25,30,35,40]:
+			#[13,16,19,22,25,28,31,34,37,40]:
+			#[12,14,16,18,20,22,24,26,28,30,32,34,36,38,40]:
+			maxArea=0
+			start=0
+			end=0
+			index1=0
+			index2=0
+			for i in range(10,len(a)-k):
+				if (trapz(a[i:i+k],dx=time_slot)**2)*math.sqrt(np.var(a[i:i+k]))/k > maxArea:
+					maxArea=(trapz(a[i:i+k],dx=time_slot)**2)*math.sqrt(np.var(a[i:i+k]))/k
+					start=t[i]
+					end=t[i+k]
+					index1=i
+					index2=i+k
+			if maxArea>currMax:
+				currMax=maxArea
+				currStart=start
+				currEnd=end
+				currK=k
+				currIndex1=index1
+				currIndex2=index2
+		compArea = (trapz(a[:currIndex1]+a[currIndex2:],dx=time_slot)**2)*math.sqrt(np.var(a[:currIndex1]+a[currIndex2:]))/len(a[:currIndex1])+len(a[currIndex2:])
+		if compArea >currMax:
+			status='signal not ok'
+		elif currK/len(a) > .60 or currK/len(a) < .25 :
+			status='signal not ok'
+		else:
+			status='signal ok'
+		outfile.write(input+','+str(currStart)+','+str(currEnd)+','+str(round(currStart*5000))+','+str(round(currEnd*5000))+','+str(currK)+','+status+'\n')
+	if time !=None:
+		start=0
+		end=0
+		maxArea=0
+		k=time
+		outfile=open('segmentations','a')
+		for i in range(len(a)-k):
+			if (trapz(a[i:i+k],dx=time_slot)**2)*math.sqrt(np.var(a[i:i+k]))/k > maxArea:
+				maxArea=(trapz(a[i:i+k],dx=time_slot)**2)*math.sqrt(np.var(a[i:i+k]))/k 
+				start=t[i]
+				end=t[i+k]
+		outfile.write(input+','+str(start)+','+str(end)+','+str(round(start*5000))+','+str(round(end*5000))+'\n')
+
+
+	'''		
 	plt.plot(t,a)
 	plt.xlabel('Time')
 	plt.ylabel('Amplitude')
 	plt.show()
+	'''
+
+def buildAvgfreq(input,window,start,end,fs,time=None,inFile=True):
+	if inFile==True:
+		file=pd.read_csv(input,names=['time','val'])
+	else:
+		file=pd.DataFrame(input,columns=['val'])
+	a=[]
+	j=0
+	minAmp=0
+	maxAmp=0
+	count=0
+	time_slot=window/fs
+	f=np.fft.rfftfreq(window,1/fs).tolist()
+	for i in range(0,file.shape[0],window):
+		if i+window > file.shape[0]:
+			break
+		x=abs(np.fft.rfft(file['val'].iloc[i:(i+(window))].values).real).tolist()
+		y=[x[i]*f[i] for i in range(len(x))]
+		if maxAmp<max(x):
+			maxAmp=max(x)
+		if count > (start * time_slot):
+			a.append(np.mean(y)+np.std(y))
+		if end != None and count > (end*time_slot):
+			break
+		count+=1
+	t=np.linspace(start,start+time_slot*len(a),len(a)).tolist()
+	outfile=open('../spectrogram/'+input+'_spec','w')
+	for i in range(len(a)):
+		outfile.write(str(t[i])+','+str(a[i])+'\n')
+
 
 def build_phaseogram(input,window,start,end,fs,inFile=True):
 	if inFile==True:
@@ -236,11 +318,12 @@ def build_phaseogram(input,window,start,end,fs,inFile=True):
 	print(time_slot*len(a))
 	print(len(a))
 	t=np.linspace(start,start+time_slot*len(a),len(a)).tolist()
+	'''
 	plt.plot(t,a)
 	plt.xlabel('Time')
 	plt.ylabel('Frequency')
 	plt.show()
-
+	'''
 
 def build_filter(Order,pass_band,stop_band,band,fs,filter,ripple,attenuation):
 	nyq=fs/2
@@ -350,6 +433,26 @@ def buildPreProcessed(low,high):
 			p.join()
 	return
 
+def buildSegments(blob,window,time):
+	files=glob.glob(blob)
+	#mp.set_start_method('fork')
+	for file in files:
+		if '.py' not in file:
+			p=mp.Process(target=plotAvgfreq,args=(file,window,0,None,5000,time,))
+			p.start()
+			p.join()
+	return
+
+def buildAvgSpectrogram(blob,window,time):
+	files=glob.glob(blob)
+	#mp.set_start_method('fork')
+	for file in files:
+		if '.py' not in file:
+			p=mp.Process(target=buildAvgfreq,args=(file,window,0,None,5000,time,))
+			p.start()
+			p.join()
+	return
+
 def buildFilteredFile(b1,a1,b2,a2,file,low,high):
 	sampled1=down_sample(file,20,6)
 	filtered1=apply_filter(b1,a1,sampled1)
@@ -425,10 +528,11 @@ def buildCorrelated():
 				
 
 def getMeanDist(database,inData,inFile,label):
-	data=pd.read_csv(database,names=['name','start','end','label'])
+	data=pd.read_csv(database,names=['name','starttime','endtime','start','end','len','signal-qual','label'])
 	data=data[data['label']==label]
 	totalDist=0
 	totalcount=0
+	f=open('time-dtw-5','a')
 	for i in range(data.shape[0]):
 		if data.iloc[i]['name']==inFile:
 			continue
@@ -436,13 +540,35 @@ def getMeanDist(database,inData,inFile,label):
 		compFile=compFile['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
 		totalDist+=gf.getDTWDist(inData,compFile.tolist())
 		totalcount+=1
-	return totalDist/totalcount
+	f.write(str(totalDist/totalcount)+','+inFile+','+label+'\n')
 
-def getFeatures(database,inData,inFile,inLabel,labels):
+def getMeanSpectrogramDist(database,inData,inFile,label):
+	data=pd.read_csv(database,names=['name','starttime','endtime','start','end','len','signal-qual','label'])
+	data=data[data['label']==label]
+	totalDist=0
+	totalcount=0
+	f=open('spec-dtw-5','a')
+	for i in range(data.shape[0]):
+		if data.iloc[i]['name']==inFile:
+			continue
+		compFile=pd.read_csv('../spectrogram/'+data.iloc[i]['name']+'_spec',names=['time','val'])
+		compFile=compFile[compFile['time']>=data.iloc[i]['starttime']]
+		compFile=compFile[compFile['time']<=data.iloc[i]['endtime']]
+		compFile=compFile['val']
+		totalDist+=gf.getDTWDist(inData,compFile.tolist())
+		totalcount+=1
+	f.write(str(totalDist/totalcount)+','+inFile+','+label+'\n')
+
+def getFeatures(database,inData,specData,inFile,inLabel,labels):
 	featureVector=[]
-	outFile=open('feautreFile','a')
 	for label in labels:
-		featureVector.append(getMeanDist(database,inData,inFile,label))
+		p=mp.Process(target=getMeanDist,args=(database,inData,inFile,label,))
+		p.start()
+		p.join()
+	for label in labels:
+		p=mp.Process(target=getMeanSpectrogramDist,args=(database,specData,inFile,label,))
+		p.start()
+		p.join()
 	featureVector.append(gf.getMean(inData))
 	featureVector.append(gf.getArea(inData))
 	featureVector.append(gf.getAbsMean(inData))
@@ -459,12 +585,17 @@ def getFeatures(database,inData,inFile,inLabel,labels):
 	return
 
 def buildFeatures(dataFile,labels):
-	data=pd.read_csv(dataFile,names=['name','start','end','label'])
-	mp.set_start_method('fork')
-	for i in range(data.shape[0]):
+	data=pd.read_csv(dataFile,names=['name','starttime','endtime','start','end','len','signal-qual','label'])
+#	mp.set_start_method('fork')
+	#for i in range(data.shape[0]):
+	for i in range(0,1):
 		inData=pd.read_csv(data.iloc[i]['name'],names=('time','val'))
+		specData=pd.read_csv('../spectrogram/'+data.iloc[i]['name']+'_spec',names=('time','val'))
 		inData=inData['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
-		p=mp.Process(target=getFeatures,args=(dataFile,inData,data.iloc[i]['name'],data.iloc[i]['label'],labels,))
+		specData=specData[specData['time']>=data.iloc[i]['starttime']]
+		specData=specData[specData['time']<=data.iloc[i]['endtime']]
+		specData=specData['val']
+		p=mp.Process(target=getFeatures,args=(dataFile,inData,specData,data.iloc[i]['name'],data.iloc[i]['label'],labels,))
 		p.start()
 		p.join()
 	return
@@ -497,6 +628,15 @@ def makePredictions(dataFile,train,test):
 		print(testData.iloc[i,20:21].values)
 		print('next\n')
 		'''
+def createLabels(dataFile):
+	f=open(dataFile,'r')
+	outfile=open(dataFile+'_labeled','w')
+	lines=f.readlines()
+	for line in lines:
+		tokens=line.strip().split(',')
+		label=tokens[0].split('_')[1]
+		outfile.write(line.strip()+','+label+'\n')
+
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
@@ -508,9 +648,13 @@ High pass at 10 Hz 6 rp=.01 and rs =80
 #movingWinFilter('psanthal_1_cA_4_wmean_filt',101):
 #plt_dict={'0-100Hz': {'data':filtered1,'file':False,'fs':100000},'10 Hz- 100 Hz': {'data':filtered2,'file':False,'fs':5000}}
 #plotDatafromDict(plt_dict)
-plotAvgfreq('ahosain_5_1_10-100Hz',500,0,None,5000)
+#print(plotAvgfreq('alamin_alarm_3_10-100Hz',500,0,None,5000,20))
 #build_spectrogram('ahosain_5_1_10-100Hz',500,0,None,5000)
-#buildFeatures('segmentations.csv',['h1','h2','h3','5','m'])
+buildFeatures('seg-5_labeled',['alarm','call','snow','rain','turnon','email','time','therm','open','close','wakeup','interpreter','ac'])
 #makePredictions('feautreFile',70,69)
 #buildPreProcessed(10,100)
 #getAmp('ahosain_5_1',sample_rate)
+#buildSegments('*10-100*',500,None)
+#buildAvgSpectrogram('*10-100*',500,None)
+#plotAvgfreq('ding_turnon_12_10-100Hz',500,0,None,5000)
+#createLabels('seg-5')
