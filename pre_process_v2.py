@@ -1,23 +1,18 @@
-import sys
-
-
-sys.settrace
 '''
 Source code for extracting data from raw signal
 @author Panneer Selvam Santhalingam
 2/5/2018
 '''
-
+import sys
 import cmath
 import numpy as np
 import pandas as pd
 from scipy.signal import spectrogram, iirfilter,freqz,decimate,filtfilt,correlate
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import copy as cp
 import glob
 import multiprocessing as mp
-from scipy.spatial.distance import euclidean
-from fastdtw import fastdtw
+#from scipy.spatial.distance import euclidean
 import time
 import os
 #import mlpy
@@ -25,7 +20,7 @@ import get_features as gf
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.tree import export_graphviz
 import io
-import pydotplus
+#import pydotplus
 from numpy import trapz
 import math
 sample_rate=10e6 
@@ -583,21 +578,107 @@ def getFeatures(database,inData,specData,inFile,inLabel,labels):
 	featureVector=[str(x) for x in featureVector]
 	outFile.write(','.join(featureVector)+','+inFile+','+inLabel+'\n')
 	return
-def writeDistance(data1,file1,data2,file2,label):
-	outFile=open('dtw-time','w')
-	outFile.write(file1+','+file2+','+str(gf.getDTWDist(data1,data2))+'\n')
 
-def computeDistances(dataFile):
+def writeDistance(dataBase,data,data1,file1,index,start,end,startI,endI):
+	outFile=open('/scratch/psanthal/seg2-'+str(startI)+'-'+str(endI-1)+'/seg2'+'_'+str(index)+'_'+str(end),'w')
+	outputs=[]
+	for i in range(start,end):
+		data2=dataBase[data.iloc[i]['name']]
+		data2=data2.tolist()
+		label=data.iloc[i]['label']
+		file2=data.iloc[i]['name']
+		outputs.append(file1+','+file2+','+str(gf.getDTWDist(data1,data2))+','+label+'\n')
+#		print(file1+','+file2+','+str(gf.getDTWDist(data1,data2))+','+label+'\n')
+	for line in outputs:
+		outFile.write(line)
+
+def computeDistances(dataFile,startI,endI):
 	data=pd.read_csv(dataFile,names=['name','starttime','endtime','start','end','len','signal-qual','label'])
+	dataBase={}
 	for i in range(data.shape[0]):
-		input1=pd.read_csv(data.iloc[i]['name'],names=['time','val'])
-		input1=input1['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
-		for j in range(i+1,data.shape[0]):
-			input2=pd.read_csv(data.iloc[j]['name'],names=['time','val'])
-			input2=input2['val'].iloc[data.iloc[j]['start']:data.iloc[j]['end']]
-			p=mp.Process(target=writeDistance,args=(input1.tolist(),data.iloc[i]['name'],input2.tolist(),data.iloc[j]['name'],data.iloc[j]['label'],))
+		inputData=pd.read_csv(data.iloc[i]['name'],names=['time','val'])
+		inputData=inputData['val'].iloc[data.iloc[i]['start']:data.iloc[i]['end']]
+		dataBase[data.iloc[i]['name']]=inputData
+	processes=[]
+	count=0
+	toWrite=[]
+	#outQueue=mp.Queue()
+	for i in range(startI,endI):
+		input1=dataBase[data.iloc[i]['name']]
+		for j in range(i+1,data.shape[0],100):
+			if j+100>data.shape[0]:
+				end=data.shape[0]
+			else:
+				end=j+100
+			p=mp.Process(target=writeDistance,args=(dataBase,data,input1.tolist(),data.iloc[i]['name'],i,j,end,startI,endI,))
+			if count>16:
+				for k in processes:
+					k.join()
+					processes=[]
+					count=0
 			p.start()
-			p.join()
+			processes.append(p)
+	#		if not outQueue.empty():
+	#			toWrite.append(outQueue.get())
+			count+=1
+	#f=open('temp','w')
+	#for line in toWrite:
+	#	f.write(line)
+	if count > 0:
+		for k in processes:
+			k.join()
+	return
+
+def writeSpectrogramDistance(dataBase,data,data1,file1,index,start,end,startI,endI):
+	outFile=open('/scratch/psanthal/spect_distances/seg2-'+str(startI)+'-'+str(endI-1)+'/seg2'+'_'+str(index)+'_'+str(end),'w')
+	outputs=[]
+	for i in range(start,end):
+		data2=dataBase[data.iloc[i]['name']]
+		data2=data2.tolist()
+		label=data.iloc[i]['label']
+		file2=data.iloc[i]['name']
+		outputs.append(file1+','+file2+','+str(gf.getDTWDist(data1,data2))+','+label+'\n')
+#		print(file1+','+file2+','+str(gf.getDTWDist(data1,data2))+','+label+'\n')
+	for line in outputs:
+		outFile.write(line)
+
+def computeSpectrogramDistances(dataFile,startI,endI):
+	data=pd.read_csv(dataFile,names=['name','starttime','endtime','start','end','len','signal-qual','label'])
+	dataBase={}
+	for i in range(data.shape[0]):
+		inputData=pd.read_csv(data.iloc[i]['name'],names=['time','val'])
+		inputData=inputData[inputData['time']>=data.iloc[i]['starttime']]
+		inputData=inputData[inputData['time']<=data.iloc[i]['endtime']]
+		inputData=inputData['val']
+		dataBase[data.iloc[i]['name']]=inputData
+	processes=[]
+	count=0
+	toWrite=[]
+	#outQueue=mp.Queue()
+	for i in range(startI,endI):
+		input1=dataBase[data.iloc[i]['name']]
+		for j in range(i+1,data.shape[0],100):
+			if j+100>data.shape[0]:
+				end=data.shape[0]
+			else:
+				end=j+100
+			p=mp.Process(target=writeSpectrogramDistance,args=(dataBase,data,input1.tolist(),data.iloc[i]['name'],i,j,end,startI,endI,))
+			if count>16:
+				for k in processes:
+					k.join()
+					processes=[]
+					count=0
+			p.start()
+			processes.append(p)
+	#		if not outQueue.empty():
+	#			toWrite.append(outQueue.get())
+			count+=1
+	#f=open('temp','w')
+	#for line in toWrite:
+	#	f.write(line)
+	if count > 0:
+		for k in processes:
+			k.join()
 	return
 
 def buildFeatures(dataFile,labels):
@@ -653,7 +734,41 @@ def createLabels(dataFile):
 		label=tokens[0].split('_')[1]
 		outfile.write(line.strip()+','+label+'\n')
 
+def computeLabelAverageDistances(labels):	
+	files=glob.glob('*_*')
+	average_distances={}
+	for file in files:
+		if 'merged' in file:
+			f=open('file','r')
+			lines=f.readlines()
+			for line in lines:
+				file1,file2,distance,label=lines.strip().split(',')
+				label1=file1.split('_')[1]
+				label2=file2.split('_')[1]
+				try:
+					average_distances[file1][label2]+=distance
+				except:
+					average_distances[file1]={}
+					for label in labels:
+						average_distances[file1][label]=0
+					average_distances[file1][label2]+=distance
+				try:
+					average_distances[file2][label1]+=distance
+				except:
+					average_distances[file2]={}
+					for label in labels:
+						average_distances[file2][label]=0
+					average_distances[file2][label1]+=distance
+	outfile=open('dtw_time_seg-5','w')
+	for key in average_distances.keys():
+		towrite=[]
+		towrite.append(label)
+		for label in labels:
+			towrite.append(str(average_distances[key][label]))
+		outfile.write(','.join(towrite)+'\n')
+	return	
 
+	
 #Size of file being used 33748110
 #din1ca 134918751
 #psanthal #134847240
@@ -667,7 +782,7 @@ High pass at 10 Hz 6 rp=.01 and rs =80
 #plotDatafromDict(plt_dict)
 #print(plotAvgfreq('alamin_alarm_3_10-100Hz',500,0,None,5000,20))
 #build_spectrogram('ahosain_5_1_10-100Hz',500,0,None,5000)
-buildFeatures('seg-5_labeled',['alarm','call','snow','rain','turnon','email','time','therm','open','close','wakeup','interpreter','ac'])
+#buildFeatures('seg-5_labeled',['alarm','call','snow','rain','turnon','email','time','therm','open','close','wakeup','interpreter','ac'])
 #makePredictions('feautreFile',70,69)
 #buildPreProcessed(10,100)
 #getAmp('ahosain_5_1',sample_rate)
@@ -675,3 +790,9 @@ buildFeatures('seg-5_labeled',['alarm','call','snow','rain','turnon','email','ti
 #buildAvgSpectrogram('*10-100*',500,None)
 #plotAvgfreq('ding_turnon_12_10-100Hz',500,0,None,5000)
 #createLabels('seg-5')
+#if __name__ == '__main__':
+#start=int(sys.argv[1])
+#end=int(sys.argv[2])
+#computeDistances('seg-5_labeled',start,end)
+#computeSpectrogramDistances('seg-5_labeled',start,end)
+computeLabelAverageDistances(['alarm','call','snow','rain','turnon','email','time','therm','open','close','wakeup','interpreter','ac'])
